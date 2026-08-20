@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Local RAG Assistant</title>
+
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+        }
+
+
+        body {
+
+            margin: 0;
+
+            min-height: 100vh;
+
+            font-family:
+                Inter,
+                Arial,
+                sans-serif;
+
+            background:
+                radial-gradient(
+                    circle at top left,
+                    #243b55,
+                    #141e30 45%,
+                    #0b1120
+                );
+
+            color: #f8fafc;
+
+            display: flex;
+
+            justify-content: center;
+
+            align-items: center;
+
+            padding: 30px;
+        }
+
+
+        .container {
+
+            width: 100%;
+
+            max-width: 900px;
+
+            background:
+                rgba(15, 23, 42, 0.88);
+
+            border:
+                1px solid
+                rgba(255, 255, 255, 0.08);
+
+            border-radius: 24px;
+
+            padding: 35px;
+
+            box-shadow:
+                0 25px 70px
+                rgba(0, 0, 0, 0.45);
+
+            backdrop-filter: blur(15px);
+        }
+
+
+        .header {
+
+            text-align: center;
+
+            margin-bottom: 30px;
+        }
+
+
+        .logo {
+
+            width: 60px;
+
+            height: 60px;
+
+            margin: 0 auto 15px;
+
+            border-radius: 18px;
+
+            display: flex;
+
+            justify-content: center;
+
+            align-items: center;
+
+            font-size: 28px;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #6366f1,
+                    #8b5cf6
+                );
+
+            box-shadow:
+                0 10px 30px
+                rgba(99, 102, 241, 0.35);
+        }
+
+
+        h1 {
+
+            margin: 0;
+
+            font-size: 32px;
+
+            letter-spacing: -0.5px;
+        }
+
+
+        .subtitle {
+
+            margin-top: 10px;
+
+            color: #94a3b8;
+
+            font-size: 15px;
+        }
+
+
+        .input-area {
+
+            background:
+                rgba(30, 41, 59, 0.75);
+
+            border:
+                1px solid
+                rgba(255, 255, 255, 0.08);
+
+            border-radius: 18px;
+
+            padding: 15px;
+
+            transition: 0.2s;
+        }
+
+
+        .input-area:focus-within {
+
+            border-color: #6366f1;
+
+            box-shadow:
+                0 0 0 3px
+                rgba(99, 102, 241, 0.15);
+        }
+
+
+        textarea {
+
+            width: 100%;
+
+            min-height: 100px;
+
+            resize: vertical;
+
+            border: none;
+
+            outline: none;
+
+            background: transparent;
+
+            color: #f8fafc;
+
+            font-size: 16px;
+
+            line-height: 1.6;
+
+            font-family: inherit;
+        }
+
+
+        textarea::placeholder {
+
+            color: #64748b;
+        }
+
+
+        .input-footer {
+
+            display: flex;
+
+            justify-content: space-between;
+
+            align-items: center;
+
+            margin-top: 10px;
+        }
+
+
+        .hint {
+
+            color: #64748b;
+
+            font-size: 12px;
+        }
+
+
+        button {
+
+            border: none;
+
+            border-radius: 12px;
+
+            padding: 11px 20px;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #6366f1,
+                    #8b5cf6
+                );
+
+            color: white;
+
+            font-size: 14px;
+
+            font-weight: 600;
+
+            cursor: pointer;
+
+            transition:
+                transform 0.2s,
+                box-shadow 0.2s;
+        }
+
+
+        button:hover {
+
+            transform: translateY(-1px);
+
+            box-shadow:
+                0 8px 25px
+                rgba(99, 102, 241, 0.35);
+        }
+
+
+        button:disabled {
+
+            opacity: 0.6;
+
+            cursor: not-allowed;
+
+            transform: none;
+        }
+
+
+        .loading {
+
+            display: none;
+
+            margin-top: 25px;
+
+            padding: 20px;
+
+            text-align: center;
+
+            color: #94a3b8;
+        }
+
+
+        .spinner {
+
+            width: 25px;
+
+            height: 25px;
+
+            border:
+                3px solid
+                rgba(255, 255, 255, 0.15);
+
+            border-top-color: #8b5cf6;
+
+            border-radius: 50%;
+
+            animation:
+                spin 0.8s linear infinite;
+
+            margin: 0 auto 10px;
+        }
+
+
+        @keyframes spin {
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+
+        .result {
+
+            display: none;
+
+            margin-top: 30px;
+
+            animation:
+                fadeIn 0.3s ease;
+        }
+
+
+        @keyframes fadeIn {
+
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+
+        .section-title {
+
+            font-size: 13px;
+
+            text-transform: uppercase;
+
+            letter-spacing: 1px;
+
+            color: #64748b;
+
+            margin-bottom: 12px;
+        }
+
+
+        .answer {
+
+            background:
+                rgba(30, 41, 59, 0.8);
+
+            border:
+                1px solid
+                rgba(255, 255, 255, 0.07);
+
+            border-radius: 18px;
+
+            padding: 22px;
+
+            line-height: 1.7;
+
+            color: #e2e8f0;
+
+            white-space: pre-wrap;
+        }
+
+
+        .sources {
+
+            margin-top: 25px;
+        }
+
+
+        .source {
+
+            display: flex;
+
+            justify-content: space-between;
+
+            align-items: center;
+
+            background:
+                rgba(30, 41, 59, 0.55);
+
+            border:
+                1px solid
+                rgba(255, 255, 255, 0.06);
+
+            border-radius: 14px;
+
+            padding: 15px 18px;
+
+            margin-bottom: 10px;
+        }
+
+
+        .source-name {
+
+            font-weight: 600;
+
+            font-size: 14px;
+        }
+
+
+        .similarity {
+
+            color: #a5b4fc;
+
+            font-size: 13px;
+
+            font-weight: 600;
+        }
+
+
+        .footer {
+
+            text-align: center;
+
+            margin-top: 30px;
+
+            color: #475569;
+
+            font-size: 12px;
+        }
+
+
+        @media (max-width: 600px) {
+
+            body {
+                padding: 15px;
+                align-items: flex-start;
+            }
+
+            .container {
+                margin-top: 20px;
+                padding: 22px;
+                border-radius: 18px;
+            }
+
+            h1 {
+                font-size: 26px;
+            }
+
+            .source {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 5px;
+            }
+
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+
+<div class="container">
+
+
+    <div class="header">
+
+        <div class="logo">
+            ✦
+        </div>
+
+        <h1>
+            Local RAG Assistant
+        </h1>
+
+        <div class="subtitle">
+            Ask questions about your documents
+        </div>
+
+    </div>
+
+
+
+    <div class="input-area">
+
+        <textarea
+            id="question"
+            placeholder="Ask something about your documents..."
+        ></textarea>
+
+
+        <div class="input-footer">
+
+            <div class="hint">
+                Press Enter to ask
+            </div>
+
+            <button
+                id="askButton"
+                onclick="askQuestion()"
+            >
+                Ask →
+            </button>
+
+        </div>
+
+    </div>
+
+
+
+    <div
+        id="loading"
+        class="loading"
+    >
+
+        <div class="spinner"></div>
+
+        Searching documents and generating answer...
+
+    </div>
+
+
+
+    <div
+        id="result"
+        class="result"
+    >
+
+        <div class="section-title">
+            Answer
+        </div>
+
+
+        <div
+            id="answer"
+            class="answer"
+        ></div>
+
+
+
+        <div class="sources">
+
+            <div class="section-title">
+                Sources
+            </div>
+
+            <div id="sources"></div>
+
+        </div>
+
+    </div>
+
+
+
+    <div class="footer">
+
+        Powered by Local RAG · FastAPI · Qwen Embeddings · Phi-4-mini
+
+    </div>
+
+
+</div>
+
+
+
+<script>
+
+
+const textarea =
+    document.getElementById("question");
+
+
+textarea.addEventListener(
+    "keydown",
+    function(event) {
+
+        if (
+            event.key === "Enter" &&
+            !event.shiftKey
+        ) {
+
+            event.preventDefault();
+
+            askQuestion();
+
+        }
+
+    }
+);
+
+
+
+async function askQuestion() {
+
+    const question =
+        textarea.value.trim();
+
+
+    if (!question) {
+        return;
+    }
+
+
+    const button =
+        document.getElementById("askButton");
+
+    const loading =
+        document.getElementById("loading");
+
+    const result =
+        document.getElementById("result");
+
+
+    button.disabled = true;
+
+    loading.style.display = "block";
+
+    result.style.display = "none";
+
+
+    try {
+
+        const response =
+            await fetch(
+                "http://127.0.0.1:8000/ask",
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body: JSON.stringify({
+                        question: question
+                    })
+                }
+            );
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                "API request failed"
+            );
+
+        }
+
+
+        const data =
+            await response.json();
+
+
+        document.getElementById(
+            "answer"
+        ).innerText =
+            data.answer;
+
+
+        const sources =
+            document.getElementById(
+                "sources"
+            );
+
+
+        sources.innerHTML = "";
+
+
+        for (
+            const source
+            of data.sources
+        ) {
+
+            const similarity =
+                (
+                    source.similarity * 100
+                ).toFixed(1);
+
+
+            sources.innerHTML += `
+
+                <div class="source">
+
+                    <div class="source-name">
+
+                        Chunk ${source.chunk}
+
+                    </div>
+
+                    <div class="similarity">
+
+                        ${similarity}% match
+
+                    </div>
+
+                </div>
+
+            `;
+
+        }
+
+
+        result.style.display = "block";
+
+
+    }
+    catch (error) {
+
+        document.getElementById(
+            "answer"
+        ).innerText =
+            "Something went wrong while contacting the RAG API.";
+
+
+        result.style.display = "block";
+
+
+        console.error(error);
+
+    }
+    finally {
+
+        loading.style.display = "none";
+
+        button.disabled = false;
+
+    }
+
+}
+
+
+</script>
+
+
+</body>
+
+</html>
