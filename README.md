@@ -103,8 +103,36 @@ LocalRAG/
 └── README.md
 ```
 
-## Notlar
+## Kullanılan Dokümanlar
 
-- Kaynakça/referans metinlerinin retrieval sonuçlarına karışmasını önlemek için basit bir filtre (`looks_like_reference`) kullanılmaktadır.
-- Context uzunluğu `max_chars` parametresi ile sınırlandırılmıştır (varsayılan 6000 karakter).
-- Bu proje, RAG pipeline'ının temel bileşenlerini (chunking, embedding, retrieval, context management, generation) öğrenme amacıyla adım adım geliştirilmiştir.
+Sistem, uyku ve hafıza ilişkisi üzerine üç adet İngilizce akademik makale ile beslenmiştir:
+
+| Dosya | Açıklama |
+|---|---|
+| `main.pdf` | Uyku ve hafıza konsolidasyonu üzerine ana kaynak makale |
+| `rstb20190234.pdf` | Royal Society Philosophical Transactions'tan uyku-hafıza ilişkisine dair akademik yayın |
+| `ssci-13-02-0152.pdf` | Uyku ve bilişsel fonksiyonlar üzerine bilimsel makale |
+
+Bu üç PDF, chunk'lara ayrılıp embedding'e dönüştürülerek `data/rag.db` veritabanına kaydedilmiştir. Toplamda yaklaşık **~200 chunk** oluşmuştur (kesin sayı, `insert_pdf.py` her çalıştırıldığında chunking parametrelerine bağlı olarak değişebilir).
+
+## Karşılaşılan Sorunlar ve Çözümler
+
+Geliştirme sürecinde karşılaşılan başlıca teknik problemler ve bunlara getirilen çözümler:
+
+**1. Kaynakça metinlerinin retrieval'a karışması**
+
+PDF'lerden metin çıkarımı yapılırken, makalelerin kaynakça (references) bölümleri de diğer metinlerle aynı şekilde chunk'lara ayrılıyordu. Bu kaynakça chunk'ları (örn. `"Sakai T, Tamura T... Proc Natl Acad Sci..."` gibi) bazen soruyla yüzeysel bir kelime benzerliği taşıdığı için cosine similarity skorunda yüksek puan alıyor, ancak kullanıcıya anlamlı bir bilgi sunmuyordu.
+
+*Çözüm:* `looks_like_reference()` adında bir fonksiyon yazıldı. Bu fonksiyon bir metin parçasının içinde `doi:`, `et al.`, `journal`, `vol.`, `pp.` gibi kaynakça belirteçlerinin yoğunluğuna bakarak o parçanın kaynakça olup olmadığını tahmin ediyor. Kaynakça olarak işaretlenen chunk'lar, retrieval aşamasında (`get_top_chunks()` içinde) tamamen elenip modele hiç gönderilmiyor.
+
+**2. Türkçe soru — İngilizce doküman uyumsuzluğu**
+
+Kullanılan embedding modeli (`qwen3-embedding-0.6b`) ve tüm kaynak PDF'ler İngilizce olduğu için, soru Türkçe sorulduğunda semantic similarity düşük çıkıyor, bazen hiç chunk seçilemiyor ya da alakasız chunk'lar dönüyordu. Bu nedenle sistemin şu anki hâliyle sorular İngilizce sorulmalıdır; çok dilli kullanım kapsam dışında bırakılmıştır.
+
+
+
+## Staj Bağlamı
+
+Bu projeyi, Microsoft AI Yazılım Programı kapsamında bir aylık bir öğrenme sürecinde geliştirdim. Amacım, RAG (Retrieval-Augmented Generation) mimarisinin temel bileşenlerini — chunking, embedding, semantic retrieval, context management ve generation — sıfırdan uygulayarak derinlemesine öğrenmekti.
+
+Bu proje benim ilk yerel (local) LLM deneyimimdi; Azure AI Foundry Local'i de bu süreçte ilk kez kullandım. Süreç boyunca yalnızca bir pipeline kurmakla kalmadım, aynı zamanda retrieval kalitesinin generation kalitesi üzerindeki etkisini, kaynakça/referans metinlerinin retrieval sonuçlarını nasıl bozabileceğini ve context yönetiminin neden kritik olduğunu pratikte gözlemleme fırsatı buldum.
