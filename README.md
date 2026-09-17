@@ -1,63 +1,162 @@
+
 # Local RAG Assistant
 
-PDF dokümanları üzerinde çalışan, tamamen yerel (local) modellerle çalışan basit bir RAG (Retrieval-Augmented Generation) uygulaması. Azure AI Foundry Local üzerinden çalıştırılan bir embedding modeli ve bir LLM kullanılarak, sorulan sorular yalnızca yüklenen dokümanlardaki bilgilere dayanarak cevaplanır.
+PDF dokümanları üzerinde çalışan, **yerel (local) bir Retrieval-Augmented Generation (RAG)** uygulaması.
+
+Uygulama, **Azure AI Foundry Local** kullanarak embedding modelini ve Large Language Model'i (LLM) yerel olarak çalıştırır. PDF dokümanları metin parçalarına (chunks) ayrılır, embedding'lere dönüştürülür ve SQLite veritabanında saklanır. Kullanıcının sorusu da embedding'e dönüştürülerek semantic similarity üzerinden en ilgili içerikler bulunur. Retrieved context, yerel LLM'e verilerek cevap oluşturulur.
+
+Projenin temel amacı; **document processing, chunking, embeddings, semantic retrieval, context management ve local LLM generation** gibi RAG sistemlerinin temel bileşenlerini uygulamalı olarak öğrenmek ve uçtan uca çalışan bir local RAG pipeline geliştirmektir.
+
+## Özellikler
+
+- 📄 PDF dokümanlarından otomatik metin çıkarma
+- ✂️ Metinleri daha küçük chunk'lara ayırma
+- 🔢 Local embedding generation
+- 🔎 Cosine similarity ile semantic retrieval
+- 🗄️ SQLite ile local chunk ve embedding storage
+- 🚫 Kaynakça/reference chunk'larının retrieval'dan filtrelenmesi
+- 🤖 `phi-4-mini` ile local LLM generation
+- 💻 CLI üzerinden sorgulama
+- 🌐 FastAPI REST API
+- 🖥️ Basit web frontend
+- 🔒 Local model inference
+- 🧪 Retrieval testleri
 
 ## Mimari
 
-```
-Soru
-  ↓
-Embedding (qwen3-embedding-0.6b)
-  ↓
-Semantic Retrieval (cosine similarity, SQLite)
-  ↓
-Top-K Chunk Seçimi + Kaynakça Filtreleme
-  ↓
+```text
+Kullanıcı Sorusu
+       ↓
+Query Embedding
+(qwen3-embedding-0.6b)
+       ↓
+Semantic Retrieval
+(Cosine Similarity + SQLite)
+       ↓
+Top-K Chunk Seçimi
++ Kaynakça Filtreleme
+       ↓
 Context Oluşturma
-  ↓
-Generation (phi-4-mini)
-  ↓
+       ↓
+Local LLM Generation
+(phi-4-mini)
+       ↓
 Cevap
 ```
 
+## RAG Pipeline
+
+Sistem aşağıdaki adımlardan oluşur:
+
+1. **PDF Ingestion** — PDF dosyalarından metin `pypdf` kullanılarak çıkarılır.
+2. **Chunking** — Çıkarılan metin daha küçük parçalara ayrılır.
+3. **Embedding Generation** — Her chunk, `qwen3-embedding-0.6b` modeli ile embedding'e dönüştürülür.
+4. **Local Storage** — Chunk'lar ve embedding'leri SQLite veritabanında saklanır.
+5. **Query Embedding** — Kullanıcının sorusu aynı embedding modeli ile vektöre dönüştürülür.
+6. **Semantic Retrieval** — Soru embedding'i ile kayıtlı chunk embedding'leri arasında cosine similarity hesaplanır.
+7. **Filtering & Top-K Selection** — En ilgili chunk'lar seçilir ve reference-like chunk'lar filtrelenir.
+8. **Context Construction** — Seçilen chunk'lar LLM'e gönderilecek context'i oluşturur.
+9. **Generation** — `phi-4-mini`, retrieved context kullanılarak nihai cevabı üretir.
+
 ## Kullanılan Teknolojiler
 
-- **Python 3.11**
-- **Azure AI Foundry Local** — yerel LLM ve embedding modeli sunucusu (OpenAI uyumlu API)
-- **qwen3-embedding-0.6b** — embedding modeli
-- **phi-4-mini** — cevap üretimi (generation) modeli
-- **SQLite** — chunk ve embedding depolama
-- **FastAPI** — REST API katmanı
-- **pypdf** — PDF metin çıkarımı
+| Teknoloji | Kullanım Amacı |
+|---|---|
+| **Python 3.11** | Uygulama geliştirme |
+| **Azure AI Foundry Local** | Local model runtime ve OpenAI uyumlu API |
+| **qwen3-embedding-0.6b** | Text embedding generation |
+| **phi-4-mini** | Answer generation |
+| **SQLite** | Chunk ve embedding storage |
+| **FastAPI** | REST API katmanı |
+| **pypdf** | PDF text extraction |
+
+## Proje Yapısı
+
+```text
+LocalRAG/
+├── data/
+│   ├── pdfs/                  # Kaynak PDF dosyaları
+│   └── rag.db                 # SQLite veritabanı
+│
+├── frontend/
+│   └── index.html             # Basit web arayüzü
+│
+├── src/
+│   ├── database.py            # Veritabanı şemasının oluşturulması
+│   ├── insert_pdf.py          # PDF → chunk → embedding → database
+│   ├── search.py              # Retrieval + generation (CLI)
+│   ├── api.py                 # FastAPI uygulaması
+│   └── test_retrieval.py      # Retrieval testleri
+│
+├── requirements.txt
+└── README.md
+```
 
 ## Kurulum
 
-1. Bağımlılıkları yükleyin:
-   ```bash
-   pip install -r requirements.txt
-   ```
+### 1. Python bağımlılıklarını yükleyin
 
-2. [Azure AI Foundry Local](https://learn.microsoft.com/azure/ai-foundry/foundry-local/) kurun ve şu modelleri indirin:
-   - `qwen3-embedding-0.6b`
-   - `phi-4-mini`
+```bash
+pip install -r requirements.txt
+```
 
-3. Foundry Local'i başlatın ve verdiği portu not edin. `src/search.py` ve `src/insert_pdf.py` içindeki `base_url` değerini kendi portunuza göre güncelleyin:
-   ```python
-   client = OpenAI(
-       base_url="http://127.0.0.1:PORT/v1",
-       api_key="not-needed"
-   )
-   ```
+### 2. Azure AI Foundry Local'i kurun
 
-4. Veritabanı şemasını oluşturun:
-   ```bash
-   python src/database.py
-   ```
+**Azure AI Foundry Local**'i kurun ve aşağıdaki modelleri indirin:
 
-5. PDF dosyalarınızı `data/pdfs/` klasörüne koyun ve embedding'leri oluşturun:
-   ```bash
-   python src/insert_pdf.py
-   ```
+- `qwen3-embedding-0.6b`
+- `phi-4-mini`
+
+### 3. Foundry Local'i başlatın
+
+Foundry Local'i başlatın ve local model server tarafından kullanılan portu öğrenin.
+
+`src/search.py` ve `src/insert_pdf.py` içerisindeki `base_url` değerini kendi portunuza göre güncelleyin:
+
+```python
+client = OpenAI(
+    base_url="http://127.0.0.1:PORT/v1",
+    api_key="not-needed"
+)
+```
+
+`PORT` yerine Foundry Local'in kullandığı portu yazın.
+
+### 4. Veritabanını oluşturun
+
+```bash
+python src/database.py
+```
+
+### 5. PDF dosyalarını ekleyin
+
+PDF dosyalarınızı aşağıdaki klasöre koyun:
+
+```text
+data/pdfs/
+```
+
+Ardından ingestion pipeline'ını çalıştırın:
+
+```bash
+python src/insert_pdf.py
+```
+
+Bu işlem:
+
+```text
+PDF
+ ↓
+Text Extraction
+ ↓
+Chunking
+ ↓
+Embedding Generation
+ ↓
+SQLite Storage
+```
+
+adımlarını gerçekleştirir.
 
 ## Kullanım
 
@@ -67,13 +166,18 @@ Cevap
 python src/search.py
 ```
 
-### API üzerinden sorgulama
+Program başladıktan sonra sorularınızı terminal üzerinden girebilirsiniz.
+
+### REST API
+
+FastAPI sunucusunu başlatın:
 
 ```bash
 uvicorn src.api:app --reload
 ```
 
-Sonra:
+Ardından `/ask` endpoint'ine soru gönderebilirsiniz:
+
 ```bash
 curl -X POST http://127.0.0.1:8000/ask \
   -H "Content-Type: application/json" \
@@ -82,57 +186,155 @@ curl -X POST http://127.0.0.1:8000/ask \
 
 ### Frontend
 
-`frontend/index.html` dosyasını tarayıcıda açarak basit bir arayüz üzerinden de sorgulama yapabilirsiniz (API'nin çalışıyor olması gerekir).
+Projede basit bir browser-based frontend de bulunmaktadır.
 
-## Proje Yapısı
+API çalışırken:
 
-```
-LocalRAG/
-├── data/
-│   ├── pdfs/           # Kaynak PDF dosyaları
-│   └── rag.db          # Chunk + embedding veritabanı
-├── frontend/
-│   └── index.html      # Basit web arayüzü
-├── src/
-│   ├── database.py     # Veritabanı şeması oluşturma
-│   ├── insert_pdf.py   # PDF → chunk → embedding → veritabanı
-│   ├── search.py       # Retrieval + generation (CLI)
-│   ├── api.py           # FastAPI endpoint
-│   └── test_retrieval.py  # Retrieval testleri
-├── requirements.txt
-└── README.md
+```text
+frontend/index.html
 ```
 
-## Kullanılan Dokümanlar
+dosyasını tarayıcıda açarak kullanıcı arayüzü üzerinden soru sorabilirsiniz.
 
-Sistem, uyku ve hafıza ilişkisi üzerine üç adet İngilizce akademik makale ile beslenmiştir:
+Frontend, soruları local FastAPI endpoint'ine gönderir ve oluşturulan cevabı kullanıcıya gösterir.
+
+## Knowledge Base
+
+Mevcut knowledge base, **sleep, memory ve cognitive function** konularıyla ilgili üç İngilizce akademik makaleden oluşmaktadır.
 
 | Dosya | Açıklama |
 |---|---|
-| `main.pdf` | Uyku ve hafıza konsolidasyonu üzerine ana kaynak makale |
-| `rstb20190234.pdf` | Royal Society Philosophical Transactions'tan uyku-hafıza ilişkisine dair akademik yayın |
-| `ssci-13-02-0152.pdf` | Uyku ve bilişsel fonksiyonlar üzerine bilimsel makale |
+| `main.pdf` | Sleep ve memory consolidation üzerine ana kaynak makale |
+| `rstb20190234.pdf` | Sleep-memory ilişkisi üzerine akademik yayın |
+| `ssci-13-02-0152.pdf` | Sleep ve cognitive functions üzerine bilimsel makale |
 
-Bu üç PDF, chunk'lara ayrılıp embedding'e dönüştürülerek `data/rag.db` veritabanına kaydedilmiştir. Toplamda yaklaşık **~200 chunk** oluşmuştur (kesin sayı, `insert_pdf.py` her çalıştırıldığında chunking parametrelerine bağlı olarak değişebilir).
+Bu üç PDF, chunk'lara ayrılmış, her chunk için embedding oluşturulmuş ve sonuçlar `data/rag.db` içerisinde saklanmıştır.
 
-## Karşılaşılan Sorunlar ve Çözümler
+Mevcut veri setinde yaklaşık **200 chunk** bulunmaktadır. Kesin chunk sayısı, `insert_pdf.py` çalıştırılırken kullanılan chunking parametrelerine bağlı olarak değişebilir.
 
-Geliştirme sürecinde karşılaşılan başlıca teknik problemler ve bunlara getirilen çözümler:
+## Teknik Problemler ve Çözümler
 
-**1. Kaynakça metinlerinin retrieval'a karışması**
+Geliştirme sürecinde retrieval kalitesini etkileyen çeşitli problemler tespit edilmiş ve çözülmüştür.
 
-PDF'lerden metin çıkarımı yapılırken, makalelerin kaynakça (references) bölümleri de diğer metinlerle aynı şekilde chunk'lara ayrılıyordu. Bu kaynakça chunk'ları (örn. `"Sakai T, Tamura T... Proc Natl Acad Sci..."` gibi) bazen soruyla yüzeysel bir kelime benzerliği taşıdığı için cosine similarity skorunda yüksek puan alıyor, ancak kullanıcıya anlamlı bir bilgi sunmuyordu.
+### 1. Kaynakça Metinlerinin Retrieval Sonuçlarına Karışması
 
-*Çözüm:* `looks_like_reference()` adında bir fonksiyon yazıldı. Bu fonksiyon bir metin parçasının içinde `doi:`, `et al.`, `journal`, `vol.`, `pp.` gibi kaynakça belirteçlerinin yoğunluğuna bakarak o parçanın kaynakça olup olmadığını tahmin ediyor. Kaynakça olarak işaretlenen chunk'lar, retrieval aşamasında (`get_top_chunks()` içinde) tamamen elenip modele hiç gönderilmiyor.
+PDF'lerden metin çıkarılırken makalelerin **References** bölümleri de normal içerikle aynı şekilde chunk'lara ayrılıyordu.
 
-**2. Türkçe soru — İngilizce doküman uyumsuzluğu**
+Bazı kaynakça chunk'ları, kullanıcı sorusuyla yüzeysel kelime benzerliği taşıdığı için yüksek cosine similarity skorlarına ulaşabiliyordu. Ancak bu chunk'lar gerçek içerik yerine bibliographic information içerdiğinden LLM için anlamlı bir context oluşturmuyordu.
 
-Kullanılan embedding modeli (`qwen3-embedding-0.6b`) ve tüm kaynak PDF'ler İngilizce olduğu için, soru Türkçe sorulduğunda semantic similarity düşük çıkıyor, bazen hiç chunk seçilemiyor ya da alakasız chunk'lar dönüyordu. Bu nedenle sistemin şu anki hâliyle sorular İngilizce sorulmalıdır; çok dilli kullanım kapsam dışında bırakılmıştır.
+Örneğin:
 
+```text
+Sakai T, Tamura T... Proc Natl Acad Sci...
+```
 
+gibi bir kaynakça satırı retrieval sonucunda üst sıralara çıkabiliyordu.
+
+#### Çözüm
+
+Bu problemi azaltmak için `looks_like_reference()` isimli filtering fonksiyonu geliştirildi.
+
+Fonksiyon, chunk içerisinde aşağıdaki gibi reference göstergelerinin bulunma yoğunluğunu kontrol eder:
+
+- `doi:`
+- `et al.`
+- `journal`
+- `vol.`
+- `pp.`
+
+Reference-like olarak belirlenen chunk'lar retrieval aşamasında elenir ve LLM'e gönderilen context'e dahil edilmez.
+
+Bu yaklaşım, bibliographic information içeren chunk'ların gerçek document content ile rekabet etmesini engellemek amacıyla uygulanmıştır.
+
+### 2. Türkçe Sorular ve İngilizce Dokümanlar
+
+Mevcut knowledge base tamamen İngilizce dokümanlardan oluşmaktadır.
+
+Testler sırasında Türkçe soruların bazı durumlarda daha düşük semantic similarity skorları ürettiği ve bunun sonucunda yeterince ilgili chunk bulunamadığı gözlemlenmiştir.
+
+Bu nedenle mevcut sürüm **İngilizce sorular + İngilizce dokümanlar** üzerine tasarlanmıştır.
+
+Multilingual retrieval şu an projenin kapsamı dışındadır.
+
+## Evaluation
+
+Retrieval bileşeni aşağıdaki komut ile test edilebilir:
+
+```bash
+python src/test_retrieval.py
+```
+
+Mevcut test yaklaşımı temel olarak verilen sorular için semantic olarak ilgili chunk'ların retrieval edilip edilmediğini kontrol etmeye yöneliktir.
+
+İlerleyen aşamada sistem aşağıdaki metriklerle daha kapsamlı şekilde değerlendirilebilir:
+
+- **Top-1 Retrieval Accuracy**
+- **Top-3 Retrieval Accuracy**
+- Similarity score distribution
+- Answer accuracy
+- Out-of-domain / unanswerable question handling
+- Response latency
+- Farklı chunk size ve Top-K değerlerinin karşılaştırılması
+
+## Limitations
+
+Mevcut implementasyonun bazı sınırlamaları bulunmaktadır:
+
+- Knowledge base şu anda küçük bir doküman koleksiyonundan oluşmaktadır.
+- Embedding'ler SQLite içerisinde saklanmakta ve similarity search Python tarafında gerçekleştirilmektedir. Bu yaklaşım küçük veri setleri için yeterliyken çok büyük veri setlerinde verimli olmayacaktır.
+- Mevcut doküman koleksiyonu İngilizce olduğu için multilingual retrieval uygulanmamıştır.
+- LLM'in retrieved context'e bağlı kalması büyük ölçüde prompt instructions'a dayanmaktadır.
+- Reference detection heuristic-based bir yaklaşımdır ve her türlü reference chunk'ını yakalamayı garanti etmez.
+- Özel bir vector database veya dedicated vector index kullanılmamaktadır.
+
+## Future Improvements
+
+Projeye ileride aşağıdaki geliştirmeler eklenebilir:
+
+- Daha güçlü multilingual retrieval desteği
+- Daha gelişmiş chunking ve overlap stratejileri
+- Chunk'lara document name ve page number gibi metadata eklenmesi
+- Cevaplarda source citations gösterilmesi
+- Similarity threshold eklenerek alakasız context'in reddedilmesi
+- Farklı Top-K değerlerinin karşılaştırılması
+- Farklı embedding modellerinin değerlendirilmesi
+- Automated RAG evaluation metriklerinin eklenmesi
+- Büyük veri setleri için vector search extension veya vector database kullanılması
+- Frontend'in geliştirilmesi ve conversation history eklenmesi
+- Farklı doküman formatları için destek eklenmesi
 
 ## Staj Bağlamı
 
-Bu projeyi, Microsoft AI Yazılım Programı kapsamında bir aylık bir öğrenme sürecinde geliştirdim. Amacım, RAG (Retrieval-Augmented Generation) mimarisinin temel bileşenlerini — chunking, embedding, semantic retrieval, context management ve generation — sıfırdan uygulayarak derinlemesine öğrenmekti.
+Bu proje, **Microsoft AI Yazılım Programı** kapsamında gerçekleştirilen bir aylık öğrenme sürecinin parçası olarak geliştirilmiştir.
 
-Bu proje benim ilk yerel (local) LLM deneyimimdi; Azure AI Foundry Local'i de bu süreçte ilk kez kullandım. Süreç boyunca yalnızca bir pipeline kurmakla kalmadım, aynı zamanda retrieval kalitesinin generation kalitesi üzerindeki etkisini, kaynakça/referans metinlerinin retrieval sonuçlarını nasıl bozabileceğini ve context yönetiminin neden kritik olduğunu pratikte gözlemleme fırsatı buldum.
+Projenin temel amacı, RAG mimarisini bir black-box çözüm olarak kullanmak yerine temel bileşenlerini uygulamalı olarak öğrenmek ve uçtan uca çalışan bir **local document Q&A system** geliştirmekti.
+
+Proje kapsamında aşağıdaki konularda çalışılmıştır:
+
+- Document processing ve chunking
+- Text embeddings
+- Semantic similarity search
+- SQLite data storage
+- Context construction
+- Prompt design
+- Local LLM inference
+- Azure AI Foundry Local
+- FastAPI
+- Web-based interface
+
+Bu proje aynı zamanda ilk **local LLM** deneyimim ve Azure AI Foundry Local ile ilk uygulamalı çalışmam oldu.
+
+Proje sürecinde edinilen temel deneyimlerden biri, bir RAG sisteminin cevap kalitesinin yalnızca kullanılan LLM'e bağlı olmadığıdır. **Retrieval kalitesi, preprocessing, chunking ve modele sağlanan context**, nihai generation kalitesini doğrudan etkileyebilmektedir.
+
+Özellikle reference filtering üzerinde yapılan çalışma, retrieval pipeline'ındaki küçük bir preprocessing probleminin bile LLM'e sağlanan context'i ve dolayısıyla oluşturulan cevabı etkileyebileceğini göstermiştir.
+
+## References
+
+- [Azure AI Foundry Local Documentation](https://learn.microsoft.com/azure/ai-foundry/foundry-local/)
+- [Microsoft Learn — Build a RAG Application with Foundry Local](https://learn.microsoft.com/en-us/azure/foundry-local/tutorials/tutorial-build-rag-app)
+- [Microsoft Learn — Prompt Engineering Techniques](https://learn.microsoft.com/en-us/azure/foundry/openai/concepts/prompt-engineering)
+- [SQLite Documentation](https://sqlite.org/index.html)
+- [pypdf Documentation](https://pypdf.readthedocs.io/)
+- [FastAPI Documentation](https://fastapi.tiangolo.com/)
+
+
